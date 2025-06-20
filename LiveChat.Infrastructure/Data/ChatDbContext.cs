@@ -1,5 +1,6 @@
 ﻿using LiveChat.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 namespace LiveChat.Infrastructure.Data
 {
@@ -10,7 +11,11 @@ namespace LiveChat.Infrastructure.Data
         public DbSet<User> Users { get; set; }
         public DbSet<ChatMessage> Messages { get; set; }
 
-        
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+            base.OnModelCreating(modelBuilder);
+        }
     }
 }
 
