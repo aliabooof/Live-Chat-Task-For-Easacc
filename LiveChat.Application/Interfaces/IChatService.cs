@@ -1,4 +1,5 @@
-﻿using LiveChat.Domain.Entities;
+﻿using LiveChat.Application.Dtos;
+using LiveChat.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,7 @@ namespace LiveChat.Application.Interfaces
     public interface IChatService
     {
         Task<List<User>> GetActiveUsersAsync();
-        Task<List<ChatMessage>> GetChatHistoryAsync(Guid userId, Guid contactId);
+        Task<List<MessageHistoryDto>> GetChatHistoryAsync(Guid userId, Guid contactId);
         Task<ChatMessage> SaveMessageAsync(ChatMessage message);
         Task MarkMessageAsSeenAsync(Guid messageId);
         Task<User?> GetUserByConnectionIdAsync(string connectionId);

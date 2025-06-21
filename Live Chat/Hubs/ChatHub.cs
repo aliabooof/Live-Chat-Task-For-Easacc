@@ -1,4 +1,6 @@
-﻿using LiveChat.Application.Interfaces;
+﻿
+using LiveChat.Application.Dtos;
+using LiveChat.Application.Interfaces;
 using LiveChat.Domain.Entities;
 using LiveChat.Domain.Enums;
 using Microsoft.AspNetCore.SignalR;
@@ -16,7 +18,7 @@ namespace Live_Chat.Hubs
             _connectionService = connectionService;
         }
 
-        public async Task JoinChat(string username, bool isAdmin = false)
+        public async Task<UserDto> JoinChat(string username, bool isAdmin = false)
         {
             var user = await _chatService.CreateOrGetUserAsync(username);
             if (user != null)
@@ -32,42 +34,91 @@ namespace Live_Chat.Hubs
                 }
 
                 await Clients.Group("Admins").SendAsync("UserJoined", user);
+
+                return new UserDto
+                {
+                    ID = user.ID,
+                    UserName = user.UserName,
+                    IsAdmin = user.IsAdmin,
+                    IsOnline = user.IsOnline,
+                    LastSeen = user.LastSeen
+                    
+                }; 
             }
+            return null;
         }
 
         public async Task SendMessage(string receiverUsername, string content, string messageType)
         {
-            var sender = await _chatService.GetUserByConnectionIdAsync(Context.ConnectionId);
+            var senderConnectionId = Context.ConnectionId;
+            var sender = await _chatService.GetUserByConnectionIdAsync(senderConnectionId);
             if (sender == null) return;
 
             var receiver = await _chatService.CreateOrGetUserAsync(receiverUsername);
             if (receiver == null) return;
 
+            var type = Enum.TryParse(typeof(MessageType), messageType, true, out var parsedObj)
+                        ? (MessageType)parsedObj
+                        : MessageType.Text;
+
+
             var message = new ChatMessage
             {
+                Id = Guid.NewGuid(),
                 Content = content,
-                Type = Enum.Parse<MessageType>(messageType),
+                Type = type,
+                Timestamp = DateTime.UtcNow,
+                IsSent = true,
+                IsSeen = false,
                 SenderId = sender.ID,
-                ReceiverId = receiver.ID
+                ReceiverId = receiver.ID,
+                Sender = sender,
+                Receiver = receiver
             };
 
-            var savedMessage = await _chatService.SaveMessageAsync(message);
+            await _chatService.SaveMessageAsync(message);
 
            
-            if (!sender.IsAdmin)
+            var messageDto = new MessageHistoryDto
             {
-                _connectionService.ResetInactivityTimer(sender.ID, Context.ConnectionId);
-            }
+                Id = message.Id,
+                Content = message.Content,
+                Type = message.Type,
+                Timestamp = message.Timestamp,
+                IsSent = message.IsSent,
+                IsSeen = message.IsSeen,
+                SenderId = sender.ID,
+                ReceiverId = receiver.ID,
+                FileName = message.FileName,
+                FilePath = message.FilePath,
+                VoiceDurationSeconds = message.VoiceDurationSeconds,
+                Sender = new UserDto
+                {
+                    ID = sender.ID,
+                    UserName = sender.UserName,
+                    IsAdmin = sender.IsAdmin,
+                    IsOnline = sender.IsOnline,
+                    LastSeen = sender.LastSeen,
+                    ConnectionId = sender.ConnectionId
+                },
+                Receiver = new UserDto
+                {
+                    ID = receiver.ID,
+                    UserName = receiver.UserName,
+                    IsAdmin = receiver.IsAdmin,
+                    IsOnline = receiver.IsOnline,
+                    LastSeen = receiver.LastSeen,
+                    ConnectionId = receiver.ConnectionId
+                }
+            };
 
             
-            var receiverConnections = _connectionService.GetConnectionIds(receiver. ID);
-            foreach (var connId in receiverConnections)
+            if (!string.IsNullOrEmpty(receiver.ConnectionId))
             {
-                await Clients.Client(connId).SendAsync("ReceiveMessage", savedMessage);
+                await Clients.Client(receiver.ConnectionId).SendAsync("ReceiveMessage", messageDto);
             }
 
-           
-            await Clients.Caller.SendAsync("MessageSent", savedMessage);
+            await Clients.Client(senderConnectionId).SendAsync("MessageSent", messageDto);
         }
 
         public async Task MarkMessageSeen(string messageId)

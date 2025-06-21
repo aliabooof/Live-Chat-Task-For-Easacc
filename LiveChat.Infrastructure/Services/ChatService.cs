@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LiveChat.Application.Dtos;
 
 namespace LiveChat.Infrastructure.Services
 {
@@ -40,13 +41,42 @@ namespace LiveChat.Infrastructure.Services
             await _context.Users.Where(u => u.IsOnline && !u.IsAdmin).ToListAsync();
 
 
-        public async Task<List<ChatMessage>> GetChatHistoryAsync(Guid userId, Guid contactId) =>
+        public async Task<List<MessageHistoryDto>> GetChatHistoryAsync(Guid userId, Guid contactId) =>
             await _context.Messages.Where(m => (m.SenderId == userId && m.ReceiverId == contactId) ||
-                                             (m.SenderId == contactId && m.ReceiverId == userId))
-                                             .Include(m => m.Sender)
-                                             .Include(m => m.Receiver)
-                                             .OrderBy(m => m.Timestamp)
-                                             .ToListAsync();
+                    (m.SenderId == contactId && m.ReceiverId == userId))
+        .OrderBy(m => m.Timestamp)
+        .Select(m => new MessageHistoryDto
+        {
+            Id = m.Id,
+            Content = m.Content,
+            Type = m.Type,
+            Timestamp = m.Timestamp,
+            IsSent = m.IsSent,
+            IsSeen = m.IsSeen,
+            SenderId = m.SenderId,
+            ReceiverId = m.ReceiverId,
+            FileName = m.FileName,
+            FilePath = m.FilePath,
+            VoiceDurationSeconds = m.VoiceDurationSeconds,
+            Sender = new UserDto
+            {
+                ID = m.Sender.ID,
+                UserName = m.Sender.UserName,
+                IsAdmin = m.Sender.IsAdmin,
+                IsOnline = m.Sender.IsOnline,
+                LastSeen = m.Sender.LastSeen
+            },
+            Receiver = new UserDto
+            {
+                ID = m.Receiver.ID,
+                UserName = m.Receiver.UserName,
+                IsAdmin = m.Receiver.IsAdmin,
+                IsOnline = m.Receiver.IsOnline,
+                LastSeen = m.Receiver.LastSeen
+            }
+        })
+        .ToListAsync();
+
         
 
         public async Task<User?> GetUserByConnectionIdAsync(string connectionId)=>
